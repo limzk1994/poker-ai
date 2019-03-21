@@ -19,4 +19,7 @@ install:
   - source activate cs3243_group_18_poker_ai
   #Install PyPokerEngine via pip
   - pip install PyPokerEngine
+  
+script:
+  - py.test #will run all the tests in the package
  
