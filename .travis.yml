@@ -15,7 +15,7 @@ before_install:
   
 install:
   #Setup project environment using conda
-  - conda create -n cs3243_group_18_poker_ai python=2.7
+  - conda create --yes -n cs3243_group_18_poker_ai python=2.7
   - source activate cs3243_group_18_poker_ai
   #Install PyPokerEngine via pip
   - pip install PyPokerEngine
