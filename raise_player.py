@@ -41,16 +41,18 @@ class RaisedPlayer(BasePokerPlayer):
     @classmethod
     def add_pot_layer(self, round_tensor, ctr, pot_amount):
         pot_layer = np.zeros((RaisedPlayer.card_tensor_size, RaisedPlayer.card_tensor_size))
-        if pot_amount >= RaisedPlayer.smallest_number_of_chips * len(RaisedPlayer.ranks) * len(RaisedPlayer.suits):
-            for i in range(len(RaisedPlayer.suits)):
-                no_of_ranks = len(RaisedPlayer.ranks)
+        no_of_suits = len(RaisedPlayer.suits)
+        no_of_ranks = len(RaisedPlayer.ranks)
+
+        if pot_amount >= RaisedPlayer.smallest_number_of_chips * no_of_suits * no_of_ranks:
+            for i in range(no_of_suits):
                 np.put(pot_layer[i], list(range(no_of_ranks)), [1] * no_of_ranks)
         else:
             # number of chips in the pot in units of 10
             pot_units = pot_amount / RaisedPlayer.smallest_number_of_chips
-            #  number of columns to be filled in the 3 x 14 card tensor
+            #  number of columns to be filled in the 4 x 14 card tensor
             col_nums = pot_units / len(RaisedPlayer.suits) + 1
-            # number of rows to be filled in the last column of the 3 x 14 card tensor
+            # number of rows to be filled in the last column of the 4 x 14 card tensor
             row_nums = pot_units % len(RaisedPlayer.suits)
             # fill the first col_nums - 1 columns completely with ones
             for i in range(len(RaisedPlayer.suits)):
@@ -73,11 +75,11 @@ class RaisedPlayer(BasePokerPlayer):
 
     @classmethod
     def add_betting_layer(self, round_tensor, ctr, no_of_turns_completed):
-        for i in range(no_of_turns_completed):
-            round_tensor[ctr] = np.ones((RaisedPlayer.card_tensor_size, RaisedPlayer.card_tensor_size))
-            ctr += 1
-        for i in range(no_of_turns_completed, RaisedPlayer.total_no_of_rounds):
-            round_tensor[ctr] = np.zeros((RaisedPlayer.card_tensor_size, RaisedPlayer.card_tensor_size))
+        for i in range(RaisedPlayer.total_no_of_rounds):
+            if i < no_of_turns_completed:
+                round_tensor[ctr] = np.ones((RaisedPlayer.card_tensor_size, RaisedPlayer.card_tensor_size))
+            else:
+                round_tensor[ctr] = np.zeros((RaisedPlayer.card_tensor_size, RaisedPlayer.card_tensor_size))
             ctr += 1
         return ctr
 
