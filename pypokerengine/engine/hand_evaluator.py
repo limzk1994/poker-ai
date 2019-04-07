@@ -44,7 +44,8 @@ class HandEvaluator:
         "hole" : {
           "high" : hole_high,
           "low" : hole_low
-        }
+        },
+        "card": [str(card) for card in hole]
     }
 
   @classmethod
