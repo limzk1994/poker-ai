@@ -1,20 +1,18 @@
-import keras
+from __future__ import print_function
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import MaxPooling2D
 from keras.layers import Flatten
-from inspect import getmembers
 from random import choice
-from pypokerengine.engine.poker_constants import PokerConstants
 from pypokerengine.engine.card import Card
 from pypokerengine.players import BasePokerPlayer
 import numpy as np
 
 
 class Group18Player(BasePokerPlayer):
-    # number of poker rounds
-    total_no_of_rounds = len(filter(lambda x: type(x[1]) == int, getmembers(PokerConstants.Street))) - 1
+    # number of poker round
+    max_no_of_rounds = 5
     # array of cards ranks obtained from PyPokerEngine
     ranks = [Card.RANK_MAP[key] for key in Card.RANK_MAP]
     # array of card suits obtained from PyPokerEngine
@@ -23,8 +21,12 @@ class Group18Player(BasePokerPlayer):
     card_tensor_size = len(ranks) + len(suits)
     # number of chips in the poker pot is a multiple of this unit
     smallest_number_of_chips = 10
-    # check, raise, fold (is see needed?)
-    actions_available = 4
+    # check, raise, fold
+    actions_available = 3
+    # number of rows of zeros before the card matrix in the zero padded layer
+    row_padding_offset = 6
+    # number of rows of zeros before the card matrix in the zero padded layer
+    col_padding_offset = 2
 
     def __init__(self):
         # Details are included in google doc
@@ -49,8 +51,8 @@ class Group18Player(BasePokerPlayer):
     @classmethod
     def add_card_layer(self, round_tensor, card, ctr):
         card_tensor = np.zeros((Group18Player.card_tensor_size, Group18Player.card_tensor_size))
-        row_index = Group18Player.suits.index(card[0])
-        col_index = Group18Player.ranks.index(card[1])
+        row_index = Group18Player.suits.index(card[0]) + Group18Player.row_padding_offset
+        col_index = Group18Player.ranks.index(card[1]) + Group18Player.col_padding_offset
         np.put(card_tensor[row_index], [col_index], [1])
         round_tensor[ctr] = card_tensor
         return ctr + 1
@@ -70,7 +72,7 @@ class Group18Player(BasePokerPlayer):
         no_of_ranks = len(Group18Player.ranks)
 
         if pot_amount >= Group18Player.smallest_number_of_chips * no_of_suits * no_of_ranks:
-            for i in range(no_of_suits):
+            for i in range(Group18Player.row_padding_offset, no_of_suits + Group18Player.row_padding_offset):
                 np.put(pot_layer[i], list(range(no_of_ranks)), [1] * no_of_ranks)
         else:
             # number of chips in the pot in units of 10
@@ -80,11 +82,17 @@ class Group18Player(BasePokerPlayer):
             # number of rows to be filled in the last column of the 4 x 14 card tensor
             row_nums = pot_units % len(Group18Player.suits)
             # fill the first col_nums - 1 columns completely with ones
+            for i in range(Group18Player.row_padding_offset, len(Group18Player.suits) + Group18Player.row_padding_offset):
+                np.put(pot_layer[i], list(range(Group18Player.col_padding_offset, col_nums + Group18Player.col_padding_offset - 1)), [1] * (col_nums - 1))
+            # fill the last column up to row_nums with ones
+            for i in range(Group18Player.row_padding_offset, row_nums + Group18Player.row_padding_offset):
+                np.put(pot_layer[i], [col_nums + Group18Player.col_padding_offset - 1], [1])
             for i in range(len(Group18Player.suits)):
                 np.put(pot_layer[i], list(range(col_nums - 1)), [1] * (col_nums - 1))
             # fill the last column up to row_nums with ones
             for i in range(row_nums):
                 np.put(pot_layer[i], [col_nums - 1], [1])
+        
         round_tensor[ctr] = pot_layer
         return ctr + 1
 
@@ -100,7 +108,7 @@ class Group18Player(BasePokerPlayer):
 
     @classmethod
     def add_betting_layer(self, round_tensor, ctr, no_of_turns_completed):
-        for i in range(Group18Player.total_no_of_rounds):
+        for i in range(Group18Player.max_no_of_rounds):
             if i < no_of_turns_completed:
                 round_tensor[ctr] = np.ones((Group18Player.card_tensor_size, Group18Player.card_tensor_size))
             else:
@@ -111,14 +119,13 @@ class Group18Player(BasePokerPlayer):
     # TODO: return correct action and amount (currently randomly chosen)
     def declare_action(self, valid_actions, hole_card, round_state):
         community_card = round_state['community_card']
-        no_of_layers = len(hole_card) + len(community_card) + Group18Player.total_no_of_rounds + 3
+        no_of_layers = len(hole_card) + len(community_card) + Group18Player.max_no_of_rounds + 3
         round_tensor = np.zeros((no_of_layers, Group18Player.card_tensor_size, Group18Player.card_tensor_size))
         ctr = 0
 
         for card in hole_card + community_card:
             ctr = Group18Player.add_card_layer(round_tensor, card, ctr)
         ctr = Group18Player.add_extra_hand_layer(round_tensor, ctr)
-
         pot_amount = round_state['pot']['main']['amount']
         ctr = Group18Player.add_pot_layer(round_tensor, ctr, pot_amount)
 
@@ -131,7 +138,7 @@ class Group18Player(BasePokerPlayer):
         # placeholder for the actual action to be taken by the agent
         action_dict = choice(valid_actions)
         action = action_dict['action']
-
+        
         return action
 
     def receive_game_start_message(self, game_info):
